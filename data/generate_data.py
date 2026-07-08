@@ -17,7 +17,8 @@ Output columns:
     claim_id, member_id, provider_id, provider_type, plan_type,
     member_age_band, member_state, claim_type, diagnosis_category,
     procedure_category, service_date, submission_date, billed_amount,
-    allowed_amount, paid_amount, claim_status, denial_reason
+    allowed_amount, paid_amount, claim_status, denial_reason,
+    is_readmission_within_30d
 """
 import argparse
 import csv
