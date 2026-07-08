@@ -1,0 +1,29 @@
+# Generated data — regenerate with a fixed seed via `make local-smoke-test`.
+# data/generate_data.py --seed 42 is deterministic, so these are reproducible
+# and deliberately kept out of git (70MB of regenerable CSV + binary Parquet).
+/raw/
+/curated/
+
+# Charts under analysis/charts/ ARE committed (embedded in README.md);
+# only ignore stray output elsewhere.
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Spark / Hadoop local run artifacts
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+_SUCCESS
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

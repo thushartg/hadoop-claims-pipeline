@@ -1,0 +1,166 @@
+# docker-compose.yml
+#
+# Single-node-per-daemon Hadoop + YARN + Hive + Spark stack, built on the
+# widely-used big-data-europe (bde2020) reference images. This is the
+# standard "learn/portfolio Hadoop cluster on a laptop" pattern.
+#
+# CAVEAT (read this before filing an issue against yourself at 1am):
+# the bde2020 images have not been actively maintained since ~2021-2022.
+# They still work for most people as of this writing, but image pulls can
+# occasionally fail or tags can disappear. If `docker compose pull` fails
+# on any service below, check https://hub.docker.com/u/bde2020 for current
+# tags, or swap to the official `apache/hadoop` + `apache/hive` images
+# (requires adjusting the env var scheme -- their entrypoints differ from
+# bde2020's CORE_CONF_/HDFS_CONF_/YARN_CONF_ convention used here).
+#
+# Bring the whole stack up:  docker compose up -d
+# Then run the pipeline:     make pipeline
+# UIs once running:
+#   NameNode UI:        http://localhost:9870
+#   ResourceManager UI: http://localhost:8088
+#   Spark Master UI:     http://localhost:8080
+#   HiveServer2:          jdbc:hive2://localhost:10000
+
+version: "3"
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - "9870:9870"
+      - "8020:8020"
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=claims-cluster
+    env_file:
+      - ./hadoop.env
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9864:9864"
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    restart: always
+    depends_on:
+      - namenode
+      - datanode
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8088:8088"
+
+  nodemanager:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    restart: always
+    depends_on:
+      - namenode
+      - datanode
+      - resourcemanager
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864 resourcemanager:8088
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8042:8042"
+
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+    container_name: historyserver
+    restart: always
+    depends_on:
+      - namenode
+      - datanode
+      - resourcemanager
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864 resourcemanager:8088
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8188:8188"
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    volumes:
+      - hive_metastore_postgresql:/var/lib/postgresql/data
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    env_file:
+      - ./hadoop.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864 hive-metastore-postgresql:5432
+    ports:
+      - "9083:9083"
+    depends_on:
+      - hive-metastore-postgresql
+      - namenode
+      - datanode
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=hive-metastore:9083
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    depends_on:
+      - hive-metastore
+    volumes:
+      - ./hive:/hive
+
+  spark-master:
+    image: bde2020/spark-master:3.1.1-hadoop3.2
+    container_name: spark-master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    env_file:
+      - ./hadoop.env
+    volumes:
+      - ./spark:/spark
+      - ./raw:/data/local_raw
+
+  spark-worker:
+    image: bde2020/spark-worker:3.1.1-hadoop3.2
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    ports:
+      - "8081:8081"
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+  hadoop_historyserver:
+  hive_metastore_postgresql:
