@@ -97,7 +97,7 @@ Regenerate charts: `make charts`
 ## Repository layout
 
 ```
-hadoop-claims-pipeline/
+hadoop-clickstream-pipeline/
 ├── docker-compose.yml       # Hadoop + YARN + Hive + Spark cluster (bde2020 images)
 ├── hadoop.env                # Shared Hadoop/Hive config for the cluster
 ├── Makefile                   # up / pipeline / local-smoke-test / charts
